@@ -4,8 +4,6 @@
 
 [functions]
   directory = "api"
-  node_bundler = "esbuild"
-  included_paths = ["api/*"]
 
 [[redirects]]
   from = "/*"
