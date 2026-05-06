@@ -512,57 +512,29 @@ export default function App() {
     if (file) {
       try {
         const text = await file.text();
-        const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('INVENTORY') && !l.startsWith('Note:') && !l.includes('Prepared by'));
-
-        let headers: string[] = [];
-        let dataStartIndex = 0;
-
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (line.startsWith('ITEMS') || line.startsWith('items')) {
-            headers = line.split(',').map(h => h.trim().toLowerCase());
-            dataStartIndex = i + 1;
-            break;
-          }
-        }
-
-        if (headers.length === 0) {
-          alert('Could not find header row. Please ensure CSV has "ITEMS,QTY,TYPE,CATEGORY,..." format.');
-          return;
-        }
-
-        const headerMap: Record<string, string> = {
-          'items': 'name',
-          'qty': 'quantity',
-          'type': 'type',
-          'category': 'category',
-          'status': 'status',
-          'date of acquisition': 'dateAcquisition',
-          'date': 'dateAcquisition',
-          'location': 'location'
-        };
+        const allLines = text.split('\n');
 
         const newItems: InventoryItem[] = [];
         let imported = 0;
 
-        for (let i = dataStartIndex; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line || line.includes('=') || line.includes('TOTAL')) continue;
+        for (let i = 0; i < allLines.length; i++) {
+          const rawLine = allLines[i];
+          const line = rawLine.trim();
+
+          if (!line) continue;
+          if (line.startsWith('INVENTORY') || line.startsWith('Note:') || line.includes('Prepared by')) continue;
+          if (line.includes('CHURCH =') || line.includes('DONATION =') || line.includes('PERSONAL =') || line.includes('TOTAL=')) continue;
 
           const values = line.split(',').map(v => v.trim());
 
-          const item: any = {};
-          headers.forEach((h, idx) => {
-            const mappedKey = headerMap[h] || h;
-            item[mappedKey] = values[idx] || '';
-          });
+          if (values.length >= 4) {
+            const name = values[0];
+            if (!name || name === 'ITEMS' || name === 'items') continue;
 
-          const name = item.name || item.items;
-          if (name) {
-            const qty = parseInt(item.quantity || item.qty || '1') || 1;
-            const category = (item.category || 'NETWORK').toUpperCase().trim();
-            const type = (item.type || 'CHURCH').toUpperCase().trim();
-            const dateAcq = item.dateAcquisition || item.date || '';
+            const qty = parseInt(values[1]) || 1;
+            const typeRaw = (values[2] || 'CHURCH').toUpperCase().trim();
+            const categoryRaw = (values[3] || 'NETWORK').toUpperCase().trim();
+            const dateAcq = values[5] || '';
 
             const categoryMap: Record<string, string> = {
               'CABLE': 'CABLE', 'COMMUNICATION': 'COMMUNICATION', 'SOUND': 'SOUND',
@@ -571,8 +543,8 @@ export default function App() {
             };
 
             const typeValues = ['CHURCH', 'DONATION'];
-            const cleanCategory = categoryMap[category] || 'NETWORK';
-            const cleanType = typeValues.includes(type) ? type : 'CHURCH';
+            const cleanCategory = categoryMap[categoryRaw] || 'NETWORK';
+            const cleanType = typeValues.includes(typeRaw) ? typeRaw : 'CHURCH';
 
             newItems.push({
               id: crypto.randomUUID(),
@@ -616,6 +588,7 @@ export default function App() {
         await loadData();
         alert(`Successfully imported ${newItems.length} items!`);
       } catch (err) {
+        console.error('Import error:', err);
         alert('Failed to import CSV. Please check formatting.');
       }
     }
