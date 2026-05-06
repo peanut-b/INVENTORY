@@ -518,28 +518,29 @@ export default function App() {
         let imported = 0;
 
         for (let i = 0; i < allLines.length; i++) {
-          const rawLine = allLines[i];
-          const line = rawLine.trim();
+          const rawLine = allLines[i].trim();
 
-          if (!line) continue;
-          if (line.startsWith('INVENTORY') || line.startsWith('Note:') || line.includes('Prepared by')) continue;
-          if (line.includes('CHURCH =') || line.includes('DONATION =') || line.includes('PERSONAL =') || line.includes('TOTAL=')) continue;
+          if (!rawLine) continue;
+          if (rawLine.startsWith('INVENTORY') || rawLine.startsWith('Note:')) continue;
+          if (rawLine.includes('Prepared by') || rawLine.includes('Spencer') || rawLine.includes('Technical')) continue;
+          if (rawLine.includes('CHURCH =') || rawLine.includes('DONATION =') || rawLine.includes('PERSONAL =') || rawLine.includes('TOTAL=')) continue;
+          if (rawLine.startsWith('ITEMS,')) continue;
 
-          const values = line.split(',').map(v => v.trim());
+          const values = rawLine.split(',');
 
           if (values.length >= 4) {
-            const name = values[0];
-            if (!name || name === 'ITEMS' || name === 'items') continue;
+            const name = values[0].trim();
+            if (!name) continue;
 
-            const qty = parseInt(values[1]) || 1;
-            const typeRaw = (values[2] || 'CHURCH').toUpperCase().trim();
-            const categoryRaw = (values[3] || 'NETWORK').toUpperCase().trim();
-            const dateAcq = values[5] || '';
+            const qty = parseInt(values[1]?.trim() || '1') || 1;
+            const typeRaw = (values[2]?.trim() || 'CHURCH').toUpperCase();
+            const categoryRaw = (values[3]?.trim() || 'NETWORK').toUpperCase();
+            const dateAcq = values[5]?.trim() || '';
 
             const categoryMap: Record<string, string> = {
               'CABLE': 'CABLE', 'COMMUNICATION': 'COMMUNICATION', 'SOUND': 'SOUND',
               'PEREPHERALS': 'PEREPHERALS', 'NETWORK': 'NETWORK', 'MONITOR': 'MONITOR',
-              'PERSONAL': 'PEREPHERALS', 'PERIPHERALS': 'PEREPHERALS'
+              'PERSONAL': 'PEREPHERALS', 'PERIPHERALS': 'PEREPHERALS', 'PEREPHRALS': 'PEREPHERALS'
             };
 
             const typeValues = ['CHURCH', 'DONATION'];
