@@ -1,7 +1,5 @@
 import type { InventoryItem, User, AuditLog } from '../types';
 
-const API_BASE = '/.netlify/functions/api';
-
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem('qtrack_token');
   const headers: Record<string, string> = {
@@ -11,9 +9,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = endpoint.startsWith('/') ? `${API_BASE}${endpoint}` : `${API_BASE}/${endpoint}`;
-
-  const response = await fetch(url, {
+  const response = await fetch(`/api${endpoint}`, {
     ...options,
     headers: { ...headers, ...options?.headers },
   });
@@ -21,12 +17,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
   const text = await response.text();
 
   if (!response.ok) {
-    try {
-      const error = JSON.parse(text);
-      throw new Error(error.error || error.message || 'Request failed');
-    } catch {
-      throw new Error(text || 'Request failed');
-    }
+    throw new Error(text || 'Request failed');
   }
 
   if (!text) return {} as T;
