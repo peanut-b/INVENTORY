@@ -7,6 +7,14 @@ function base64Encode(str: string): string {
   return Buffer.from(str).toString('base64');
 }
 
+function getPath(event: APIGatewayEvent): string {
+  let p = event.path || '/';
+  if (p.startsWith('/.netlify/functions/api')) {
+    p = p.replace('/.netlify/functions/api', '/api');
+  }
+  return p;
+}
+
 export const handler = async (event: APIGatewayEvent, _context: Context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -19,12 +27,12 @@ export const handler = async (event: APIGatewayEvent, _context: Context) => {
     return { statusCode: 200, headers, body: '' };
   }
 
-  const rawPath = event.path || event.rawUrl?.split('?')[0] || '/';
+  const path = getPath(event);
 
   try {
     const body = event.body ? JSON.parse(event.body) : {};
 
-    if (rawPath.includes('/auth/login') && event.httpMethod === 'POST') {
+    if (path === '/api/auth/login' && event.httpMethod === 'POST') {
       const { email, password } = body;
       if (!email || !password) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Email and password required' }) };
@@ -38,7 +46,7 @@ export const handler = async (event: APIGatewayEvent, _context: Context) => {
       return { statusCode: 200, headers, body: JSON.stringify({ token, user: { id: user.id, email: user.email, fullName: user.full_name } }) };
     }
 
-    if (rawPath.includes('/auth/register') && event.httpMethod === 'POST') {
+    if (path === '/api/auth/register' && event.httpMethod === 'POST') {
       const { email, password, fullName } = body;
       if (!email || !password || !fullName) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'All fields required' }) };
@@ -54,7 +62,7 @@ export const handler = async (event: APIGatewayEvent, _context: Context) => {
       return { statusCode: 201, headers, body: JSON.stringify({ token, user }) };
     }
 
-    if (rawPath.includes('/items') && event.httpMethod === 'GET') {
+    if (path === '/api/items' && event.httpMethod === 'GET') {
       const rows = await sql`SELECT * FROM inventory_items ORDER BY created_at DESC`;
       const items = rows.map((row: any) => ({
         id: row.id, name: row.name, description: row.description || '', serialNumber: row.serial_number,
@@ -65,13 +73,13 @@ export const handler = async (event: APIGatewayEvent, _context: Context) => {
       return { statusCode: 200, headers, body: JSON.stringify(items) };
     }
 
-    if (rawPath.endsWith('/items') && event.httpMethod === 'POST') {
+    if (path === '/api/items' && event.httpMethod === 'POST') {
       await sql`INSERT INTO inventory_items (id, name, description, serial_number, quantity, min_stock_level, category, type, date_purchase, date_acquisition, price, created_at, status)
         VALUES (${body.id}, ${body.name}, ${body.description || ''}, ${body.serialNumber}, ${body.quantity}, ${body.minStockLevel}, ${body.category}, ${body.type}, ${body.datePurchase}, ${body.dateAcquisition}, ${body.price}, ${body.createdAt}, ${body.status})`;
       return { statusCode: 201, headers, body: JSON.stringify(body) };
     }
 
-    const itemMatch = rawPath.match(/\/items\/([^/]+)/);
+    const itemMatch = path.match(/^\/api\/items\/([^/]+)$/);
     if (itemMatch && event.httpMethod === 'PUT') {
       const id = itemMatch[1];
       await sql`UPDATE inventory_items SET name = ${body.name}, description = ${body.description}, serial_number = ${body.serialNumber},
@@ -85,7 +93,7 @@ export const handler = async (event: APIGatewayEvent, _context: Context) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
-    if (rawPath.includes('/logs') && event.httpMethod === 'GET') {
+    if (path === '/api/logs' && event.httpMethod === 'GET') {
       const rows = await sql`SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 500`;
       const logs = rows.map((row: any) => ({
         id: row.id, timestamp: row.timestamp, userId: row.user_id, userFullName: row.user_full_name,
@@ -94,13 +102,13 @@ export const handler = async (event: APIGatewayEvent, _context: Context) => {
       return { statusCode: 200, headers, body: JSON.stringify(logs) };
     }
 
-    if (rawPath.endsWith('/logs') && event.httpMethod === 'POST') {
+    if (path === '/api/logs' && event.httpMethod === 'POST') {
       await sql`INSERT INTO audit_logs (id, timestamp, user_id, user_full_name, action, item_id, item_name, details)
         VALUES (${body.id}, ${body.timestamp}, ${body.userId}, ${body.userFullName}, ${body.action}, ${body.itemId}, ${body.itemName}, ${body.details})`;
       return { statusCode: 201, headers, body: JSON.stringify(body) };
     }
 
-    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found', path: rawPath }) };
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found', path }) };
   } catch (error: any) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
