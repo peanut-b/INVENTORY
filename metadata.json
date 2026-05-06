@@ -1,0 +1,6 @@
+{
+  "name": "QTrack Pro - QR Inventory System",
+  "description": "Professional inventory management with QR scanning, 3x2 sticker generation, and CSV-based data tracking.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}
