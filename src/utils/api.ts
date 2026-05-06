@@ -1,96 +1,46 @@
 import type { InventoryItem, User, AuditLog } from '../types';
 
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+const BASE = '/.netlify/functions/api';
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem('qtrack_token');
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: { ...headers, ...options?.headers },
-  });
+  const res = await fetch(`${BASE}${path}`, { ...options, headers: { ...headers, ...options?.headers } });
+  const text = await res.text();
 
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(text || 'Request failed');
-  }
-
-  if (!text) return {} as T;
-  return JSON.parse(text);
+  if (!res.ok) throw new Error(text || 'Request failed');
+  return text ? JSON.parse(text) : ({} as T);
 }
 
 export const api = {
   auth: {
-     async login(email: string, password: string): Promise<{ token: string; user: User }> {
-       const result = await fetchApi<{ token: string; user: User }>('/auth/login', {
-         method: 'POST',
-         body: JSON.stringify({ email, password }),
-       });
-       localStorage.setItem('qtrack_token', result.token);
-       return result;
-     },
+    login: (email: string, password: string) =>
+      request<{ token: string; user: User }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      }).then(r => { localStorage.setItem('qtrack_token', r.token); return r; }),
 
-     async register(email: string, password: string, fullName: string): Promise<{ token: string; user: User }> {
-       const result = await fetchApi<{ token: string; user: User }>('/auth/register', {
-         method: 'POST',
-         body: JSON.stringify({ email, password, fullName }),
-       });
-       localStorage.setItem('qtrack_token', result.token);
-       return result;
-     },
+    register: (email: string, password: string, fullName: string) =>
+      request<{ token: string; user: User }>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, fullName }),
+      }).then(r => { localStorage.setItem('qtrack_token', r.token); return r; }),
 
-     logout() {
-       localStorage.removeItem('qtrack_token');
-     },
-
-     getToken(): string | null {
-       return localStorage.getItem('qtrack_token');
-     }
-   },
+    logout: () => localStorage.removeItem('qtrack_token'),
+    getToken: () => localStorage.getItem('qtrack_token'),
+  },
 
   items: {
-    async getAll(): Promise<InventoryItem[]> {
-      return fetchApi<InventoryItem[]>('/items');
-    },
-
-    async create(item: InventoryItem): Promise<InventoryItem> {
-      return fetchApi<InventoryItem>('/items', {
-        method: 'POST',
-        body: JSON.stringify(item),
-      });
-    },
-
-    async update(item: InventoryItem): Promise<InventoryItem> {
-      return fetchApi<InventoryItem>(`/items/${item.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(item),
-      });
-    },
-
-    async delete(id: string): Promise<void> {
-      await fetchApi(`/items/${id}`, { method: 'DELETE' });
-    },
+    getAll: () => request<InventoryItem[]>('/items'),
+    create: (item: InventoryItem) => request<InventoryItem>('/items', { method: 'POST', body: JSON.stringify(item) }),
+    update: (item: InventoryItem) => request<InventoryItem>(`/items/${item.id}`, { method: 'PUT', body: JSON.stringify(item) }),
+    delete: (id: string) => request(`/items/${id}`, { method: 'DELETE' }),
   },
 
   logs: {
-    async getAll(): Promise<AuditLog[]> {
-      return fetchApi<AuditLog[]>('/logs');
-    },
-
-    async create(log: Omit<AuditLog, 'id' | 'timestamp'>): Promise<AuditLog> {
-      return fetchApi<AuditLog>('/logs', {
-        method: 'POST',
-        body: JSON.stringify(log),
-      });
-    },
+    getAll: () => request<AuditLog[]>('/logs'),
+    create: (log: Omit<AuditLog, 'id' | 'timestamp'>) => request<AuditLog>('/logs', { method: 'POST', body: JSON.stringify(log) }),
   },
-
-  initializeDatabase: async (): Promise<void> => {
-    await fetchApi('/init', { method: 'POST' });
-  }
 };

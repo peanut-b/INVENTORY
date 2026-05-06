@@ -1,8 +1,12 @@
--- QTrack Pro Database Schema for Neon
--- Run this SQL in Neon SQL Editor to set up the database
+-- Run this in Neon SQL Editor to set up QTrack Pro database
+
+-- Drop existing tables (optional - for clean slate)
+DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS inventory_items CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
 
 -- Users table
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
@@ -11,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Inventory items table
-CREATE TABLE IF NOT EXISTS inventory_items (
+CREATE TABLE inventory_items (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT DEFAULT '',
@@ -28,7 +32,7 @@ CREATE TABLE IF NOT EXISTS inventory_items (
 );
 
 -- Audit logs table
-CREATE TABLE IF NOT EXISTS audit_logs (
+CREATE TABLE audit_logs (
   id TEXT PRIMARY KEY,
   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   user_id TEXT NOT NULL,
@@ -39,9 +43,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   details TEXT DEFAULT ''
 );
 
--- Indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_inventory_serial ON inventory_items(serial_number);
-CREATE INDEX IF NOT EXISTS idx_inventory_category ON inventory_items(category);
-CREATE INDEX IF NOT EXISTS idx_inventory_status ON inventory_items(status);
-CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+-- Indexes
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_inventory_serial ON inventory_items(serial_number);
+CREATE INDEX idx_inventory_category ON inventory_items(category);
+CREATE INDEX idx_audit_timestamp ON audit_logs(timestamp DESC);

@@ -31,4 +31,4 @@ export interface AuditLog {
   details: string;
 }
 
-export type ViewState = 'dashboard' | 'inventory' | 'register' | 'scanner' | 'details' | 'sticker' | 'login' | 'forgot-password' | 'settings' | 'audit_log';
+export type ViewState = 'dashboard' | 'inventory' | 'register' | 'scanner' | 'details' | 'sticker' | 'login' | 'forgot-password' | 'settings' | 'audit_log' | 'register-form';
