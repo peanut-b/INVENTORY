@@ -284,7 +284,8 @@ export default function App() {
       setView('dashboard');
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Login failed');
+      console.error('Login error:', err);
+      alert(err.message || 'Login failed. Check console for details.');
     } finally {
       setLoading(false);
     }
@@ -299,7 +300,8 @@ export default function App() {
       setView('dashboard');
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Registration failed');
+      console.error('Register error:', err);
+      alert(err.message || 'Registration failed. Check console for details.');
     } finally {
       setLoading(false);
     }
