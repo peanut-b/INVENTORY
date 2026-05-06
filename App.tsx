@@ -512,36 +512,62 @@ export default function App() {
     if (file) {
       try {
         const text = await file.text();
-        const lines = text.split('\n').filter(l => l.trim());
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const allLines = text.split('\n');
 
         const newItems: InventoryItem[] = [];
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim());
-          const item: any = {};
-          headers.forEach((h, idx) => {
-            item[h] = values[idx];
-          });
+        let imported = 0;
 
-          if (item.name && item.serial_number) {
-            const qty = Number(item.quantity) || 0;
-            const minLevel = Number(item.min_stock_level) || 5;
+        for (let i = 0; i < allLines.length; i++) {
+          const rawLine = allLines[i];
+          const line = rawLine.trim();
+
+          if (!line) continue;
+          if (line.startsWith('INVENTORY') || line.startsWith('Note:') || line.includes('Prepared by')) continue;
+          if (line.includes('CHURCH =') || line.includes('DONATION =') || line.includes('PERSONAL =') || line.includes('TOTAL=')) continue;
+
+          const values = line.split(',').map(v => v.trim());
+
+          if (values.length >= 4) {
+            const name = values[0];
+            if (!name || name === 'ITEMS' || name === 'items') continue;
+
+            const qty = parseInt(values[1]) || 1;
+            const typeRaw = (values[2] || 'CHURCH').toUpperCase().trim();
+            const categoryRaw = (values[3] || 'NETWORK').toUpperCase().trim();
+            const dateAcq = values[5] || '';
+
+            const categoryMap: Record<string, string> = {
+              'CABLE': 'CABLE', 'COMMUNICATION': 'COMMUNICATION', 'SOUND': 'SOUND',
+              'PEREPHERALS': 'PEREPHERALS', 'NETWORK': 'NETWORK', 'MONITOR': 'MONITOR',
+              'PERSONAL': 'PEREPHERALS', 'PERIPHERALS': 'PEREPHERALS'
+            };
+
+            const typeValues = ['CHURCH', 'DONATION'];
+            const cleanCategory = categoryMap[categoryRaw] || 'NETWORK';
+            const cleanType = typeValues.includes(typeRaw) ? typeRaw : 'CHURCH';
+
             newItems.push({
               id: crypto.randomUUID(),
-              name: item.name,
-              description: item.description || '',
-              serialNumber: item.serial_number,
+              name: name,
+              description: '',
+              serialNumber: `SN-${Date.now()}-${imported.toString().padStart(4, '0')}`,
               quantity: qty,
-              minStockLevel: minLevel,
-              category: item.category || 'NETWORK',
-              type: item.type || 'CHURCH',
-              datePurchase: item.date_purchase || new Date().toISOString().split('T')[0],
-              dateAcquisition: item.date_acquisition || new Date().toISOString().split('T')[0],
-              price: Number(item.price) || 0,
+              minStockLevel: 5,
+              category: cleanCategory,
+              type: cleanType,
+              datePurchase: dateAcq || new Date().toISOString().split('T')[0],
+              dateAcquisition: dateAcq || new Date().toISOString().split('T')[0],
+              price: 0,
               createdAt: new Date().toISOString(),
-              status: calculateStatus(qty, minLevel)
+              status: calculateStatus(qty, 5)
             });
+            imported++;
           }
+        }
+
+        if (newItems.length === 0) {
+          alert('No valid items found. Please check CSV format.');
+          return;
         }
 
         for (const item of newItems) {
@@ -560,8 +586,9 @@ export default function App() {
         }
 
         await loadData();
-        alert('Inventory imported successfully!');
+        alert(`Successfully imported ${newItems.length} items!`);
       } catch (err) {
+        console.error('Import error:', err);
         alert('Failed to import CSV. Please check formatting.');
       }
     }
