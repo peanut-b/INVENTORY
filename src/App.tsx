@@ -36,23 +36,50 @@ const CATEGORIES = ['CABLE', 'COMMUNICATION', 'SOUND', 'PEREPHERALS', 'NETWORK',
 const STATUS_TYPES = ['CHURCH', 'DONATION'];
 
 const Scanner = ({ onScan, onClose }: { onScan: (data: string) => void, onClose: () => void }) => {
-  useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      false
-    );
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-    scanner.render(
-      (decodedText) => {
-        onScan(decodedText);
-        scanner.clear();
-      },
-      () => {}
-    );
+  useEffect(() => {
+    let scanner: any = null;
+
+    const startScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        const html5QrCode = new Html5Qrcode("reader");
+
+        const config = {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          videoConstraints: {
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          (decodedText) => {
+            onScan(decodedText);
+            html5QrCode.stop().catch(() => {});
+          },
+          () => {}
+        );
+        scanner = html5QrCode;
+        setLoading(false);
+      } catch (err: any) {
+        setError(err.message || 'Camera access denied');
+        setLoading(false);
+      }
+    };
+
+    startScanner();
 
     return () => {
-      scanner.clear().catch(() => {});
+      if (scanner) {
+        scanner.stop().catch(() => {});
+      }
     };
   }, [onScan]);
 
@@ -69,6 +96,20 @@ const Scanner = ({ onScan, onClose }: { onScan: (data: string) => void, onClose:
           <h2 className="text-xl font-bold text-white mb-2">Scan QR Code</h2>
           <p className="text-zinc-400 text-sm">Align the QR code within the frame</p>
         </div>
+
+        {loading && !error && (
+          <div className="w-full aspect-square flex items-center justify-center">
+            <div className="text-white">Loading camera...</div>
+          </div>
+        )}
+
+        {error && (
+          <div className="w-full p-4 text-center">
+            <p className="text-red-400 mb-2">{error}</p>
+            <p className="text-zinc-400 text-sm">Please allow camera access in your browser settings</p>
+          </div>
+        )}
+
         <div id="reader" className="w-full"></div>
       </div>
     </div>
@@ -471,36 +512,90 @@ export default function App() {
     if (file) {
       try {
         const text = await file.text();
-        const lines = text.split('\n').filter(l => l.trim());
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('INVENTORY') && !l.startsWith('Note:') && !l.includes('Prepared by'));
+
+        let headers: string[] = [];
+        let dataStartIndex = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (line.startsWith('ITEMS') || line.startsWith('items')) {
+            headers = line.split(',').map(h => h.trim().toLowerCase());
+            dataStartIndex = i + 1;
+            break;
+          }
+        }
+
+        if (headers.length === 0) {
+          alert('Could not find header row. Please ensure CSV has "ITEMS,QTY,TYPE,CATEGORY,..." format.');
+          return;
+        }
+
+        const headerMap: Record<string, string> = {
+          'items': 'name',
+          'qty': 'quantity',
+          'type': 'type',
+          'category': 'category',
+          'status': 'status',
+          'date of acquisition': 'dateAcquisition',
+          'date': 'dateAcquisition',
+          'location': 'location'
+        };
 
         const newItems: InventoryItem[] = [];
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim());
+        let imported = 0;
+
+        for (let i = dataStartIndex; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line || line.includes('=') || line.includes('TOTAL')) continue;
+
+          const values = line.split(',').map(v => v.trim());
+
           const item: any = {};
           headers.forEach((h, idx) => {
-            item[h] = values[idx];
+            const mappedKey = headerMap[h] || h;
+            item[mappedKey] = values[idx] || '';
           });
 
-          if (item.name && item.serial_number) {
-            const qty = Number(item.quantity) || 0;
-            const minLevel = Number(item.min_stock_level) || 5;
+          const name = item.name || item.items;
+          if (name) {
+            const qty = parseInt(item.quantity || item.qty || '1') || 1;
+            const category = (item.category || 'NETWORK').toUpperCase().trim();
+            const type = (item.type || 'CHURCH').toUpperCase().trim();
+            const dateAcq = item.dateAcquisition || item.date || '';
+
+            const categoryMap: Record<string, string> = {
+              'CABLE': 'CABLE', 'COMMUNICATION': 'COMMUNICATION', 'SOUND': 'SOUND',
+              'PEREPHERALS': 'PEREPHERALS', 'NETWORK': 'NETWORK', 'MONITOR': 'MONITOR',
+              'PERSONAL': 'PEREPHERALS', 'PERIPHERALS': 'PEREPHERALS'
+            };
+
+            const typeValues = ['CHURCH', 'DONATION'];
+            const cleanCategory = categoryMap[category] || 'NETWORK';
+            const cleanType = typeValues.includes(type) ? type : 'CHURCH';
+
             newItems.push({
               id: crypto.randomUUID(),
-              name: item.name,
-              description: item.description || '',
-              serialNumber: item.serial_number,
+              name: name,
+              description: '',
+              serialNumber: `SN-${Date.now()}-${imported.toString().padStart(4, '0')}`,
               quantity: qty,
-              minStockLevel: minLevel,
-              category: item.category || 'NETWORK',
-              type: item.type || 'CHURCH',
-              datePurchase: item.date_purchase || new Date().toISOString().split('T')[0],
-              dateAcquisition: item.date_acquisition || new Date().toISOString().split('T')[0],
-              price: Number(item.price) || 0,
+              minStockLevel: 5,
+              category: cleanCategory,
+              type: cleanType,
+              datePurchase: dateAcq || new Date().toISOString().split('T')[0],
+              dateAcquisition: dateAcq || new Date().toISOString().split('T')[0],
+              price: 0,
               createdAt: new Date().toISOString(),
-              status: calculateStatus(qty, minLevel)
+              status: calculateStatus(qty, 5)
             });
+            imported++;
           }
+        }
+
+        if (newItems.length === 0) {
+          alert('No valid items found. Please check CSV format.');
+          return;
         }
 
         for (const item of newItems) {
@@ -519,7 +614,7 @@ export default function App() {
         }
 
         await loadData();
-        alert('Inventory imported successfully!');
+        alert(`Successfully imported ${newItems.length} items!`);
       } catch (err) {
         alert('Failed to import CSV. Please check formatting.');
       }
